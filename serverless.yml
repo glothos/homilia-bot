@@ -1,0 +1,38 @@
+org: glothos
+app: homilia-bot-handler
+service: homilia-bot-handler
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs14.x
+
+functions:
+  hello:
+    handler: src/functions/bot-handler.handler
+    events:
+      - httpApi:
+          path: /
+          method: get
+      - sns:
+          arn: !Ref CrossFunctionCall
+          topicName: cross-function-call
+  webhook:
+    handler: src/functions/webhook.handler
+    environment:
+      TOPIC_ARN: !Ref CrossFunctionCall
+    events:
+      - httpApi:
+          path: /webhook
+          method: post
+
+resources:
+  Resources:
+    CrossFunctionCall:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: cross-function-call
+
+plugins:
+  - serverless-plugin-typescript
+  - serverless-dotenv-plugin
