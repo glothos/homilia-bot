@@ -6,25 +6,50 @@ frameworkVersion: '3'
 provider:
   name: aws
   runtime: nodejs14.x
+  environment:
+    TABLE_NAME:
+      Ref: AudioFileReference
+    TOPIC_ARN:
+      Ref: CrossFunctionCall
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:DescribeTable
+            - dynamodb:DeleteItem
+            - dynamodb:UpdateItem
+          Resource:
+            - 'Fn::GetAtt': [AudioFileReference, Arn]
+        - Effect: Allow
+          Action:
+            - sns:Publish
+          Resource:
+            - !Ref CrossFunctionCall
 
 functions:
-  hello:
-    handler: src/functions/bot-handler.handler
+  transcoder:
+    handler: src/functions/transcoder.handler
+    dependsOn: CrossFunctionCall
     events:
-      - httpApi:
-          path: /
-          method: get
       - sns:
           arn: !Ref CrossFunctionCall
           topicName: cross-function-call
+    # layers:
+    #   - { Ref: FfmpegLambdaLayer }
   webhook:
     handler: src/functions/webhook.handler
-    environment:
-      TOPIC_ARN: !Ref CrossFunctionCall
     events:
       - httpApi:
           path: /webhook
           method: post
+layers:
+  ffmpeg:
+    path: layer
 
 resources:
   Resources:
@@ -32,6 +57,17 @@ resources:
       Type: AWS::SNS::Topic
       Properties:
         TopicName: cross-function-call
+    AudioFileReference:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: AudioFileReference
+        AttributeDefinitions:
+          - AttributeName: ID
+            AttributeType: S
+        KeySchema:
+          - AttributeName: ID
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
 
 plugins:
   - serverless-plugin-typescript
